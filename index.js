@@ -1,8 +1,8 @@
-const { Token } = require('./config.json');
+const Config = require('./config.json');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { Client, Collection, GatewayIntentBits, MessageEmbed, MessageActionRow, MessageButton, Events, REST, Routes} = require("discord.js");
+const { EmbedBuilder, Client, Collection, GatewayIntentBits, MessageActionRow, MessageButton, Events, REST, Routes} = require("discord.js");
 
 
 class Bot extends Client {
@@ -19,22 +19,13 @@ class Bot extends Client {
     }
 
     start() {
-        this.login(Token);
+        this.login(Config['Token']);
 
         this.on('ready', () => {
             console.log('I am ready!');
         });
 
         
-        this.on(Events.MessageCreate, message => {
-            if (!message.content.startsWith('.'))
-                return;
-            if (!message.content.includes('Salami'))
-                return;
-            this.reply(message, "asasdasdasdasd")
-            .then(() => console.log(`Replied to message "${message.content}"`))
-        });
-
         this.on(Events.InteractionCreate, async interaction => {
             if (!interaction.isChatInputCommand()) return;
 
@@ -56,14 +47,6 @@ class Bot extends Client {
                 }
             }
         });
-    }
-
-    async reply(message, content) {
-        return message.reply(content);
-    }
-
-    async send(channel, content) {
-        return channel.send(content);
     }
 }
 
@@ -87,3 +70,24 @@ for (const folder of commandFolders) {
 		}
 	}
 }
+
+
+client.on('guildMemberAdd', guildMemberAdd => {
+    const embed = new EmbedBuilder()
+	.setColor(0x0099FF)
+	.setTitle('Welcome to the server!')
+	.setDescription(`Welcome to the server ${guildMemberAdd.user.username}`)
+	.setImage(guildMemberAdd.user.displayAvatarURL({ dynamic: true }))
+	.setTimestamp()
+    guildMemberAdd.guild.channels.cache.get('1342283608387358811').send({ embeds: [embed] }); 
+});
+
+client.on('guildMemberRemove', guildMemberRemove => {
+    const embed = new EmbedBuilder()
+    .setColor(0x0099FF)
+    .setTitle('Goodbye!')
+    .setDescription(`Goodbye ${guildMemberRemove.user.username}`)
+    .setImage(guildMemberRemove.user.displayAvatarURL({ dynamic: true }))
+    .setTimestamp()
+    guildMemberRemove.guild.channels.cache.get('1342283608387358811').send({ embeds: [embed] }); 
+});
