@@ -1,6 +1,12 @@
 const Config = require('./config.json');
+const TwitchClass = require('./twitch.js');
+const Twitch = new TwitchClass();
 const fs = require('node:fs');
 const path = require('node:path');
+const express = require('express');
+const bodyParser = require('body-parser');
+const crypto = require('crypto');
+const app = express();
 
 const { EmbedBuilder, Client, Collection, GatewayIntentBits, MessageActionRow, MessageButton, Events, REST, Routes} = require("discord.js");
 
@@ -22,6 +28,10 @@ class Bot extends Client {
         this.login(Config['Token']);
 
         this.on('ready', () => {
+            setTimeout(() => {
+                Twitch.createTwitchSubscription();
+            }, 2000);
+            Twitch.deleteTwitchSubscriptions();
             console.log('I am ready!');
         });
 
@@ -71,7 +81,6 @@ for (const folder of commandFolders) {
 	}
 }
 
-
 client.on('guildMemberAdd', guildMemberAdd => {
     const embed = new EmbedBuilder()
 	.setColor(0x0099FF)
@@ -90,4 +99,49 @@ client.on('guildMemberRemove', guildMemberRemove => {
     .setImage(guildMemberRemove.user.displayAvatarURL({ dynamic: true }))
     .setTimestamp()
     guildMemberRemove.guild.channels.cache.get('1342283608387358811').send({ embeds: [embed] }); 
+});
+
+app.use(bodyParser.json());
+
+app.post('/webhook', (req, res) => {
+    const message = req.body;
+
+    console.log('Received webhook message:', JSON.stringify(message, null, 2));
+
+    if (message.challenge) {
+        console.log('Responding to challenge:', message.challenge);
+        res.status(200).send(message.challenge);
+        return Twitch.checkSub();
+    }
+
+    const hmac = crypto.createHmac('sha256', Config['TwitchSecret']);
+    hmac.update(req.headers['twitch-eventsub-message-id'] + req.headers['twitch-eventsub-message-timestamp'] + JSON.stringify(req.body));
+    const signature = `sha256=${hmac.digest('hex')}`;
+
+    if (signature !== req.headers['twitch-eventsub-message-signature']) {
+        return res.status(403).send('Forbidden');
+    }
+
+    if (message.subscription.type === 'stream.online') {
+        const channel = client.channels.cache.get('1341769905288249517');
+        if (channel) {
+            if (message.event && message.event.broadcaster_user_name) {
+                const streamUrl = `https://www.twitch.tv/${message.event.broadcaster_user_name}`;
+                const embed = new EmbedBuilder()
+                    .setColor(0x0099FF)
+                    .setTitle(`${message.event.broadcaster_user_name} is now live on Twitch!`)
+                    .setURL(streamUrl)
+                    .setTimestamp();
+                channel.send({ embeds: [embed] });
+            } else {
+                console.error('Error: broadcaster_user_name not found in the event message.');
+            }
+        }
+    }
+
+    res.status(200).send('OK');
+});
+
+app.listen(3000, () => {
+    console.log('Server is running on port 3000');
 });
